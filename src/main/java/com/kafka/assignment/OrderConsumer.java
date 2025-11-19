@@ -60,27 +60,31 @@ public class OrderConsumer {
         KafkaConsumer<String, Order> consumer = new KafkaConsumer<>(props);
         consumer.subscribe(Collections.singleton("orders"));
 
-        // Initialize DLQ producer once
-        initializeDLQProducer();
 
-        System.out.println("=====================================");
-        System.out.println("🚀 OrderConsumer STARTED!");
-        System.out.println("📋 Consumer Group: " + consumerGroup);
-        System.out.println("📡 Kafka Servers: localhost:19092");
-        System.out.println("📨 Topic: orders");
-        System.out.println("⏱️  Poll Timeout: 5000ms");
-        System.out.println("=====================================");
-        System.out.println("⏳ Waiting for messages...");
 
         boolean keepRunning = true;
         while (keepRunning) {
             ConsumerRecords<String, Order> records = consumer.poll(Duration.ofMillis(5000)); // Increased timeout
 
-            
+            if (records.isEmpty()) {
+                emptyPollCount++;
+                System.out.println(" No new messages in this poll cycle (" + emptyPollCount + "/" + MAX_EMPTY_POLLS + ") - checking for more orders...");
+
+                if (emptyPollCount >= MAX_EMPTY_POLLS) {
+                    System.out.println(" All orders processed! Stopping consumer after " + MAX_EMPTY_POLLS + " empty polls.");
+                    System.out.println(" Final Summary:");
+                    System.out.println("    Total Orders Processed: " + count);
+                    if (count > 0) {
+                        System.out.println("    Final Average Price: $" + String.format("%.2f", totalPrice / count));
+                    }
+                    keepRunning = false;
+                }
+                continue;
+            }
 
             // Reset empty poll count since we received messages
             emptyPollCount = 0;
-            System.out.println("📦 Processing " + records.count() + " messages...");
+            System.out.println(" Processing " + records.count() + " messages...");
 
             for (ConsumerRecord<String, Order> rec : records) {
                 try {
@@ -146,12 +150,12 @@ public class OrderConsumer {
                 dlqProducer.close();
             }
             System.out.println("=====================================");
-            System.out.println("🎯 CONSUMER COMPLETED SUCCESSFULLY!");
-            System.out.println("📊 Processing Summary:");
-            System.out.println("   📦 Total Orders Processed: " + count);
+            System.out.println(" CONSUMER COMPLETED SUCCESSFULLY!");
+            System.out.println(" Processing Summary:");
+            System.out.println("    Total Orders Processed: " + count);
             if (count > 0) {
-                System.out.println("   💰 Average Order Price: $" + String.format("%.2f", totalPrice / count));
-                System.out.println("   💵 Total Order Value: $" + String.format("%.2f", totalPrice));
+                System.out.println("    Average Order Price: $" + String.format("%.2f", totalPrice / count));
+                System.out.println("   Total Order Value: $" + String.format("%.2f", totalPrice));
             }
             System.out.println("=====================================");
         } catch (Exception e) {
