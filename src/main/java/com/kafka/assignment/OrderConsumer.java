@@ -60,7 +60,17 @@ public class OrderConsumer {
         KafkaConsumer<String, Order> consumer = new KafkaConsumer<>(props);
         consumer.subscribe(Collections.singleton("orders"));
 
+        // Initialize DLQ producer once
+        initializeDLQProducer();
 
+        System.out.println("=====================================");
+        System.out.println(" OrderConsumer STARTED!");
+        System.out.println(" Consumer Group: " + consumerGroup);
+        System.out.println(" Kafka Servers: localhost:19092");
+        System.out.println(" Topic: orders");
+        System.out.println("  Poll Timeout: 5000ms");
+        System.out.println("=====================================");
+        System.out.println(" Waiting for messages...");
 
         boolean keepRunning = true;
         while (keepRunning) {
