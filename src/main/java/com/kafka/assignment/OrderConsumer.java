@@ -73,18 +73,37 @@ public class OrderConsumer {
         System.out.println("⏳ Waiting for messages...");
 
         boolean keepRunning = true;
-        while (true) {
-            ConsumerRecords<String, Order> records = consumer.poll(Duration.ofMillis(500));
+        while (keepRunning) {
+            ConsumerRecords<String, Order> records = consumer.poll(Duration.ofMillis(5000)); // Increased timeout
+
+            
+
+            // Reset empty poll count since we received messages
+            emptyPollCount = 0;
+            System.out.println("📦 Processing " + records.count() + " messages...");
 
             for (ConsumerRecord<String, Order> rec : records) {
                 try {
                     Order order = rec.value();
+                    String orderId = order.getOrderId().toString();
 
-                    // Simulated temporary failure → retry for order 5
+                    // Simulated temporary failure → random resource failure (5% chance for better performance)
                     // Check BEFORE processing to simulate temporary failure
-                    if (order.getOrderId().toString().equals("5") && retryCount < 1) {
-                        retryCount++;
-                        throw new TimeoutException("Temporary error!");
+                    if (random.nextDouble() < 0.1) { // 10% chance of temporary failure (reduced from 20%)
+                        int currentRetries = orderRetryCount.getOrDefault(orderId, 0);
+                        if (currentRetries < 2) { // Allow up to 2 retries per order
+                            orderRetryCount.put(orderId, currentRetries + 1);
+                            String[] failures = {
+                                "Database connection timeout",
+                                "Network timeout",
+                                "Service temporarily unavailable",
+                                "Resource pool exhausted",
+                                "External API timeout"
+                            };
+                            String failureReason = failures[random.nextInt(failures.length)];
+                            throw new TimeoutException("Temporary resource failure: " + failureReason);
+                        }
+                        // If max retries exceeded, continue processing (or it could go to DLQ)
                     }
 
                     // Real-time running average
@@ -92,21 +111,34 @@ public class OrderConsumer {
                     count++;
                     float avg = totalPrice / count;
 
-                    System.out.println("Consumed: " + order +
-                            " | Running Avg Price = " + avg);
+                    System.out.println("✓ PROCESSED ORDER: " + order.getOrderId() +
+                            " | Product: " + order.getProduct() +
+                            " | Price: $" + order.getPrice() +
+                            " | Running Avg: $" + String.format("%.2f", avg) +
+                            " | Total Orders: " + count);
 
                     // Reset retry count after successful processing
-                    retryCount = 0;
+                    orderRetryCount.remove(orderId);
 
                 } catch (TimeoutException e) {
-                    System.out.println("Temporary error → Retrying...");
+                    String orderId = rec.value().getOrderId().toString();
+                    int retries = orderRetryCount.getOrDefault(orderId, 0);
+                    System.out.println("Temporary error for Order " + orderId + " (retry " + retries + "/2) → " + e.getMessage());
                     // retry on next poll
                 } catch (Exception fatal) {
                     System.out.println("Permanent error → Sending to DLQ...");
                     sendToDLQ(rec);
                 }
             }
+
+            // Commit offsets after processing all messages in the batch
+            try {
+                consumer.commitSync();
+            } catch (Exception e) {
+                System.err.println("Error committing offsets: " + e.getMessage());
+            }
         }
+
         // Cleanup and final summary
         try {
             consumer.close();
