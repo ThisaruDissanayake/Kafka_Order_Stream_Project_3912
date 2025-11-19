@@ -153,24 +153,7 @@ public class OrderConsumer {
             }
         }
 
-        // Cleanup and final summary
-        try {
-            consumer.close();
-            if (dlqProducer != null) {
-                dlqProducer.close();
-            }
-            System.out.println("=====================================");
-            System.out.println(" CONSUMER COMPLETED SUCCESSFULLY!");
-            System.out.println(" Processing Summary:");
-            System.out.println("    Total Orders Processed: " + count);
-            if (count > 0) {
-                System.out.println("    Average Order Price: $" + String.format("%.2f", totalPrice / count));
-                System.out.println("   Total Order Value: $" + String.format("%.2f", totalPrice));
-            }
-            System.out.println("=====================================");
-        } catch (Exception e) {
-            System.err.println("Error during cleanup: " + e.getMessage());
-        }
+        
     }
 
     /**
