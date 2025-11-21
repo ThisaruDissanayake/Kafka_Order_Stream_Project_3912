@@ -1,45 +1,46 @@
 package com.kafka.assignment;
 
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.DoubleAdder;
 
 public class PriceAggregator {
     private final ConcurrentHashMap<String, ProductStats> productStats = new ConcurrentHashMap<>();
-    private final AtomicInteger totalOrders = new AtomicInteger(0);
-    private final AtomicReference<Double> totalValue = new AtomicReference<>(0.0);
+    private final AtomicLong totalOrders = new AtomicLong(0);
+    private final DoubleAdder totalValue = new DoubleAdder();
 
     public static class ProductStats {
-        private final AtomicInteger count = new AtomicInteger(0);
-        private final AtomicReference<Double> totalPrice = new AtomicReference<>(0.0);
-        private final AtomicReference<Double> averagePrice = new AtomicReference<>(0.0);
+        private final AtomicLong count = new AtomicLong(0);
+        private final DoubleAdder totalPrice = new DoubleAdder();
 
         public synchronized void addOrder(double price) {
-            int newCount = count.incrementAndGet();
-            double newTotal = totalPrice.updateAndGet(current -> current + price);
-            averagePrice.set(newTotal / newCount);
+            totalPrice.add(price);
+            count.incrementAndGet();
         }
 
-        public int getCount() { return count.get(); }
-        public double getTotalPrice() { return totalPrice.get(); }
-        public double getAveragePrice() { return averagePrice.get(); }
+        public long getCount() { return count.get(); }
+        public double getTotalPrice() { return totalPrice.sum(); }
+        public double getAveragePrice() {
+            long orders = count.get();
+            return orders == 0 ? 0.0 : totalPrice.sum() / orders;
+        }
     }
 
-    public synchronized void processOrder(Order order) {
+    public void processOrder(Order order) {
         String product = order.getProduct().toString();
         double price = order.getPrice();
 
         // Update product-specific stats
         productStats.computeIfAbsent(product, k -> new ProductStats()).addOrder(price);
 
-        // Update global stats
+        // Update global stats - add value first, then increment count to avoid division by zero
+        totalValue.add(price);
         totalOrders.incrementAndGet();
-        totalValue.updateAndGet(current -> current + price);
     }
 
-    public synchronized double getRunningAverage() {
-        int orders = totalOrders.get();
-        return orders > 0 ? totalValue.get() / orders : 0.0;
+    public double getRunningAverage() {
+        long orders = totalOrders.get();
+        return orders == 0 ? 0.0 : totalValue.sum() / orders;
     }
 
     public ProductStats getProductStats(String product) {
@@ -50,11 +51,11 @@ public class PriceAggregator {
         return new ConcurrentHashMap<>(productStats);
     }
 
-    public int getTotalOrderCount() {
+    public long getTotalOrderCount() {
         return totalOrders.get();
     }
 
     public double getTotalValue() {
-        return totalValue.get();
+        return totalValue.sum();
     }
 }

@@ -147,10 +147,20 @@ mvn exec:java -Dmode=api
 
 ### Test Scenarios
 
-The system uses predictable failure patterns based on order ID for reliable demonstration:
+The system uses predictable failure patterns based on order ID last digit for reliable demonstration:
+
+**Retry Pattern Rules:**
+- **0, 1, 2, 4, 5, 8**: ✅ Process successfully (no failures)
+- **3, 6, 9**: 🔄 Simulate temporary failures → Retry 2 times → Process successfully  
+- **7**: 🔄 Simulate temporary failures → Retry 2 times → Send to Dead Letter Queue (DLQ)
+
+**Examples:**
+- `DEMO-0`, `DEMO-1`, `DEMO-2`, `DEMO-4`, `DEMO-5`, `DEMO-8` → Success immediately
+- `DEMO-3`, `DEMO-6`, `DEMO-9` → Fail → Retry → Fail → Retry → Success
+- `DEMO-7` → Fail → Retry → Fail → Retry → DLQ
 
 #### Scenario 1: Successful Processing
-**Order IDs ending in: 1, 2, 4, 5**
+**Order IDs ending in: 0, 1, 2, 4, 5, 8**
 
 **Request:**
 ```json
@@ -181,7 +191,7 @@ ORDER SUCCESSFULLY PROCESSED!
 =====================================
 ```
 
-#### Scenario 2: Retry Mechanism
+#### Scenario 2: Retry Mechanism  
 **Order IDs ending in: 3, 6, 9**
 
 **Request:**

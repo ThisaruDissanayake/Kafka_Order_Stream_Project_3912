@@ -131,29 +131,36 @@ public class OrderConsumer {
                     boolean shouldSimulateFailure = false;
                     boolean shouldGoDLQ = false;
 
-                    // Parse order ID to get order number for predictable failure patterns
+                    // Parse order ID to get the last digit for predictable failure patterns
                     String orderNum = orderId.replaceAll("[^0-9]", ""); // Extract numbers from order ID
                     if (!orderNum.isEmpty()) {
                         try {
-                            int orderNumber = Integer.parseInt(orderNum) % 100; // Use last 2 digits
+                            // Get the last digit of the order number for pattern matching
+                            int lastDigit = Integer.parseInt(orderNum.substring(orderNum.length() - 1));
 
-                            // Every 3rd order (3, 6, 9, 12, etc.) has temporary failure
-                            if (orderNumber % 3 == 0 && orderNumber != 0) {
+                            // ASSIGNMENT REQUIREMENTS:
+                            // Orders ending in 0,1,2,4,5,8 → Successful Processing (no failure simulation)
+                            // Orders ending in 3,6,9 → Retry Mechanism
+                            // Orders ending in 7 → Dead Letter Queue
+
+                            if (lastDigit == 3 || lastDigit == 6 || lastDigit == 9) {
                                 shouldSimulateFailure = true;
-                            }
-
-                            // Every 7th order (7, 14, 21, etc.) should eventually go to DLQ
-                            if (orderNumber % 7 == 0 && orderNumber != 0) {
+                            } else if (lastDigit == 7) {
+                                shouldSimulateFailure = true;
                                 shouldGoDLQ = true;
+                            } else {
+                                // Orders ending in 0,1,2,4,5,8 should process successfully
+                                shouldSimulateFailure = false;
+                                shouldGoDLQ = false;
                             }
 
                         } catch (NumberFormatException e) {
-                            // Fallback to random if parsing fails
-                            shouldSimulateFailure = random.nextDouble() < 0.25; // 25% chance for demo
+                            // Fallback: no failure simulation if parsing fails
+                            shouldSimulateFailure = false;
                         }
                     } else {
-                        // Fallback to random if no numbers in order ID
-                        shouldSimulateFailure = random.nextDouble() < 0.25; // 25% chance for demo
+                        // Fallback: no failure simulation if no numbers in order ID
+                        shouldSimulateFailure = false;
                     }
 
                     // Apply failure simulation
@@ -181,12 +188,13 @@ public class OrderConsumer {
                         // If max retries exceeded, will continue to processing or DLQ routing
                     }
 
+                    // ONLY update aggregation for successfully processed orders
                     // Real-time running average
                     totalPrice += order.getPrice();
                     count++;
                     float avg = totalPrice / count;
 
-                    // Update aggregator if available
+                    // Update aggregator if available - AFTER successful processing
                     if (aggregator != null) {
                         aggregator.processOrder(order);
                     }
