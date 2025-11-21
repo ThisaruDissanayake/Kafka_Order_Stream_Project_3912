@@ -404,49 +404,7 @@ Kafka_Order_Stream_Project_3912/
 └── target/                             # Compiled classes
 ```
 
-## Troubleshooting
 
-### Common Issues
-
-**Kafka Connection Failed:**
-```bash
-# Verify containers are running
-docker-compose ps
-
-# Check Kafka logs
-docker-compose logs kafka
-```
-
-**Schema Registry Error:**
-```bash
-# Restart schema registry
-docker-compose restart schema-registry
-
-# Verify connectivity
-curl http://localhost:8081/subjects
-```
-
-**Port Already in Use:**
-```bash
-# Find process using port 35081
-netstat -ano | findstr :35081
-
-# Kill process (Windows)
-taskkill /PID <PID> /F
-```
-
-### Verification Commands
-
-```bash
-# Check if Kafka topics exist
-docker exec kafka kafka-topics --bootstrap-server localhost:9092 --list
-
-# Monitor consumer group  
-docker exec kafka kafka-consumer-groups --bootstrap-server localhost:9092 --describe --group order-consumer-group
-
-# View DLQ messages
-docker exec kafka kafka-console-consumer --bootstrap-server localhost:9092 --topic orders-dlq --from-beginning
-```
 
 ## Demonstration Checklist
 
